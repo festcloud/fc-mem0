@@ -30,7 +30,7 @@ MEMGRAPH_URI = os.environ.get("MEMGRAPH_URI", "bolt://localhost:7687")
 MEMGRAPH_USERNAME = os.environ.get("MEMGRAPH_USERNAME", "memgraph")
 MEMGRAPH_PASSWORD = os.environ.get("MEMGRAPH_PASSWORD", "mem0graph")
 
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+GOOGLEAI_API_KEY = os.environ.get("GOOGLE_API_KEY")
 HISTORY_DB_PATH = os.environ.get("HISTORY_DB_PATH", "/app/history/history.db")
 
 DEFAULT_CONFIG = {
@@ -50,8 +50,8 @@ DEFAULT_CONFIG = {
         "provider": "neo4j",
         "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD},
     },
-    "llm": {"provider": "openai", "config": {"api_key": OPENAI_API_KEY, "temperature": 0.2, "model": "gpt-4.1-nano-2025-04-14"}},
-    "embedder": {"provider": "openai", "config": {"api_key": OPENAI_API_KEY, "model": "text-embedding-3-small"}},
+    "llm": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "temperature": 0.2, "model": "gemini-2.5-flash"}},
+    "embedder": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "model": "gemini-embedding-001"}},
     "history_db_path": HISTORY_DB_PATH,
 }
 
@@ -111,9 +111,9 @@ def add_memory(memory_create: MemoryCreate):
 
 @app.get("/memories", summary="Get memories")
 def get_all_memories(
-    user_id: Optional[str] = None,
-    run_id: Optional[str] = None,
-    agent_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
 ):
     """Retrieve stored memories."""
     if not any([user_id, run_id, agent_id]):
@@ -190,9 +190,9 @@ def delete_memory(memory_id: str):
 
 @app.delete("/memories", summary="Delete all memories")
 def delete_all_memories(
-    user_id: Optional[str] = None,
-    run_id: Optional[str] = None,
-    agent_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
 ):
     """Delete all memories for a given identifier."""
     if not any([user_id, run_id, agent_id]):

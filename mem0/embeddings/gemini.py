@@ -13,7 +13,7 @@ class GoogleGenAIEmbedding(EmbeddingBase):
         super().__init__(config)
 
         self.config.model = self.config.model or "models/text-embedding-004"
-        self.config.embedding_dims = self.config.embedding_dims or self.config.output_dimensionality or 768
+        self.config.embedding_dims = self.config.embedding_dims or self.config.output_dimensionality or 1536
 
         api_key = self.config.api_key or os.getenv("GOOGLE_API_KEY")
 
