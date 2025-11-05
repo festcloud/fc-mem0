@@ -26,6 +26,10 @@ NEO4J_URI = os.environ.get("NEO4J_URI", "bolt://neo4j:7687")
 NEO4J_USERNAME = os.environ.get("NEO4J_USERNAME", "neo4j")
 NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "mem0graph")
 
+ELASTICSEARCH_URI = os.environ.get("ELASTICSEARCH_URI")
+ELASTICSEARCH_COLLECTION_NAME = os.environ.get("ELASTICSEARCH_COLLECTION_NAME")
+ELASTICSEARCH_PORT = os.environ.get("ELASTICSEARCH_PORT")
+
 MEMGRAPH_URI = os.environ.get("MEMGRAPH_URI", "bolt://localhost:7687")
 MEMGRAPH_USERNAME = os.environ.get("MEMGRAPH_USERNAME", "memgraph")
 MEMGRAPH_PASSWORD = os.environ.get("MEMGRAPH_PASSWORD", "mem0graph")
@@ -36,14 +40,12 @@ HISTORY_DB_PATH = os.environ.get("HISTORY_DB_PATH", "/app/history/history.db")
 DEFAULT_CONFIG = {
     "version": "v1.1",
     "vector_store": {
-        "provider": "pgvector",
+        "provider": "elasticsearch",
         "config": {
-            "host": POSTGRES_HOST,
-            "port": int(POSTGRES_PORT),
-            "dbname": POSTGRES_DB,
-            "user": POSTGRES_USER,
-            "password": POSTGRES_PASSWORD,
-            "collection_name": POSTGRES_COLLECTION_NAME,
+            "collection_name": ELASTICSEARCH_COLLECTION_NAME,
+            "host": ELASTICSEARCH_URI,
+            "port": ELASTICSEARCH_PORT,
+            "embedding_model_dims": 1536
         },
     },
     "graph_store": {
