@@ -47,7 +47,8 @@ DEFAULT_CONFIG = {
         "config": {
             "collection_name": ELASTICSEARCH_COLLECTION_NAME,
             "host": ELASTICSEARCH_URI,
-            "port": ELASTICSEARCH_PORT,
+            "port": int(ELASTICSEARCH_PORT),
+            "auto_create_index": False,
             "user": ELASTICSEARCH_USER,
             "password": ELASTICSEARCH_PASSWORD,
             "embedding_model_dims": 1536
@@ -55,13 +56,12 @@ DEFAULT_CONFIG = {
     },
     "graph_store": {
         "provider": "neo4j",
-        "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD},
+        "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD, "database": "neo4j"},
     },
     "llm": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "temperature": 0.2, "model": "gemini-2.5-flash"}},
-    "embedder": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "model": "gemini-embedding-001"}},
-    "history_db_path": HISTORY_DB_PATH,
+    "embedder": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "model": "gemini-embedding-001"}}
+    # "history_db_path": HISTORY_DB_PATH,
 }
-
 
 MEMORY_INSTANCE = Memory.from_config(DEFAULT_CONFIG)
 
