@@ -30,6 +30,8 @@ ELASTICSEARCH_URI = os.environ.get("ELASTICSEARCH_URI")
 ELASTICSEARCH_COLLECTION_NAME = os.environ.get("ELASTICSEARCH_COLLECTION_NAME")
 ELASTICSEARCH_PORT = os.environ.get("ELASTICSEARCH_PORT")
 ELASTICSEARCH_API_KEY = os.environ.get("ELASTICSEARCH_API_KEY")
+ELASTICSEARCH_USER = os.environ.get("ELASTICSEARCH_USER")
+ELASTICSEARCH_PASSWORD = os.environ.get("ELASTICSEARCH_PASSWORD")
 
 MEMGRAPH_URI = os.environ.get("MEMGRAPH_URI", "bolt://localhost:7687")
 MEMGRAPH_USERNAME = os.environ.get("MEMGRAPH_USERNAME", "memgraph")
@@ -46,7 +48,8 @@ DEFAULT_CONFIG = {
             "collection_name": ELASTICSEARCH_COLLECTION_NAME,
             "host": ELASTICSEARCH_URI,
             "port": ELASTICSEARCH_PORT,
-            "api_key": ELASTICSEARCH_API_KEY,
+            "user": ELASTICSEARCH_USER,
+            "password": ELASTICSEARCH_PASSWORD,
             "embedding_model_dims": 1536
         },
     },
