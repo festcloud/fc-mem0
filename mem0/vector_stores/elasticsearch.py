@@ -66,7 +66,7 @@ class ElasticsearchDB(VectorStoreBase):
                         "index": True,
                         "similarity": "cosine",
                     },
-                    "metadata": {"type": "object", "properties": {"user_id": {"type": "keyword"}}},
+                    "metadata": {"type": "object", "properties": {"user_id": {"type": "keyword"}, "run_id": {"type": "keyword"}}}
                 }
             },
         }
