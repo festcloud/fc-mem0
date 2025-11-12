@@ -51,7 +51,7 @@ DEFAULT_CONFIG = {
             "auto_create_index": True,
             "user": ELASTICSEARCH_USER,
             "password": ELASTICSEARCH_PASSWORD,
-            "embedding_model_dims": 1536
+            "embedding_model_dims": 768
         },
     },
     "graph_store": {
