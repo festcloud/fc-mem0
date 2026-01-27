@@ -274,10 +274,13 @@ def add_memory(memory_create: MemoryCreate):
     if not any([memory_create.user_id, memory_create.agent_id, memory_create.run_id]):
         raise HTTPException(status_code=400, detail="At least one identifier (user_id, agent_id, run_id) is required.")
 
-    params = {k: v for k, v in memory_create.model_dump().items() if v is not None and k != "messages"}
+    params = {
+        k: v for k, v in memory_create.model_dump().items()
+        if v is not None and k not in ["messages", "knowledge_type"]
+    }
+
     try:
         CURRENT_MEMORY_INSTANCE = get_mem(memory_create.knowledge_type)
-        delete_knowledge_type_from_params(params)
         response = CURRENT_MEMORY_INSTANCE.add(messages=[m.model_dump() for m in memory_create.messages], **params)
         return JSONResponse(content=response)
     except Exception as e:
@@ -327,9 +330,9 @@ def get_memory(memory_id: str,
 def search_memories(search_req: SearchRequest):
     """Search for memories based on a query."""
     try:
-        params = {k: v for k, v in search_req.model_dump().items() if v is not None and k != "query"}
+        params = {k: v for k, v in search_req.model_dump().items()
+                  if v is not None and k not in ["query", "knowledge_type"]}
         CURRENT_MEMORY_INSTANCE = get_mem(search_req.knowledge_type)
-        delete_knowledge_type_from_params(params)
         return CURRENT_MEMORY_INSTANCE.search(query=search_req.query, **params)
     except Exception as e:
         logging.exception("Error in search_memories:")
@@ -405,7 +408,6 @@ def delete_all_memories(
             k: v for k, v in {"user_id": user_id, "run_id": run_id, "agent_id": agent_id}.items() if v is not None
         }
         CURRENT_MEMORY_INSTANCE = get_mem(knowledge_type)
-        delete_knowledge_type_from_params(params)
         CURRENT_MEMORY_INSTANCE.delete_all(**params)
         return {"message": "All relevant memories deleted"}
     except Exception as e:
@@ -438,8 +440,3 @@ def get_mem(mode: str) -> Memory:
     if not instance:
         raise HTTPException(status_code=500, detail=f"Memory instance '{mode}' not initialized.")
     return instance
-
-def delete_knowledge_type_from_params(
-    params: dict[str | Literal["messages"], Any | None]):
-    if "knowledge_type" in params:
-        del params["knowledge_type"]
