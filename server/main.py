@@ -1,10 +1,11 @@
 import logging
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
@@ -81,6 +82,80 @@ Additional Instructions:
 Following is a conversation. Extract every factual statement into the JSON format described above.
 """
 
+SYSTEM_KNOWLEDGE_EXTRACTION_PROMPT = """You are a Knowledge Extraction Assistant designed to process complex data sources (Text, JSON, XML, Documentation) and convert them into atomic, factual statements.
+
+Your goal is to "flatten" hierarchical or narrative information into a list of independent, truthful facts that can be stored in a vector database or knowledge graph.
+
+### CORE OBJECTIVES:
+1.  **Format Agnostic:** You must interpret the logic within the input, regardless of whether it is unstructured text, strict JSON, or verbose XML.
+2.  **Contextualization:** Convert keys, tags, and structural hierarchy into natural language context.
+    -   Input: `{"server": {"timeout": 300}}`
+    -   Bad Fact: "timeout is 300"
+    -   Good Fact: "The server timeout is set to 300 seconds."
+3.  **Atomicity:** Each fact must stand alone without needing the previous sentence to make sense.
+
+### EXTRACTION RULES:
+1.  **Analyze the Structure:** If input is JSON/XML, use the nesting to determine the subject of the fact.
+2.  **Identify Procedures:** If the text describes a process (e.g., "Step 1..."), extract the order and the action as a fact (e.g., "The first step of the login process is entering the username").
+3.  **Ignore Syntax:** Do not output JSON brackets, XML tags, or code artifacts in the final text. Extract the *meaning*, not the syntax.
+4.  **Preserve Entities:** Keep specific names, IDs, and values exact.
+5.  **Language:** Output facts in the same language as the input content.
+6.  **Output Format:** Strictly return JSON: `{"facts": ["fact_string_1", "fact_string_2"]}`.
+
+### PROCESSING STEPS:
+1.  **Read:** Ingest the raw input.
+2.  **Decode:** If structured (JSON/XML), map keys/tags to concepts. If text, identify subjects and predicates.
+3.  **Atomize:** Break compound sentences or nested objects into individual statements.
+4.  **Verify:** Check if each statement makes sense on its own.
+5.  **Format:** Output the final JSON.
+
+### EXAMPLES:
+
+**Input (Process Text):**
+"To reset the device, hold the power button for 5 seconds. The LED will blink blue. Then release the button."
+
+**Output:**
+{
+  "facts": [
+    "To reset the device, the power button must be held for 5 seconds",
+    "The device LED blinks blue during the reset process",
+    "The power button must be released after the LED blinks"
+  ]
+}
+
+**Input (JSON Configuration):**
+{
+  "database": {
+    "host": "192.168.1.1",
+    "retries": 3,
+    "encryption": true
+  }
+}
+
+**Output:**
+{
+  "facts": [
+    "The database host IP address is 192.168.1.1",
+    "The database connection allows 3 retries",
+    "The database encryption is enabled"
+  ]
+}
+
+**Input (XML Data):**
+<employee id="101">
+  <role>Manager</role>
+  <access_level>Admin</access_level>
+</employee>
+
+**Output:**
+{
+  "facts": [
+    "Employee with ID 101 holds the role of Manager",
+    "Employee with ID 101 has Admin access level"
+  ]
+}
+"""
+
 DEFAULT_CONFIG = {
     "version": "v1.1",
     "vector_store": {
@@ -104,15 +179,55 @@ DEFAULT_CONFIG = {
     "llm": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "temperature": 0.2, "model": "gemini-2.5-flash", "max_tokens": 124000}},
     "embedder": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "model": "gemini-embedding-001", "embedding_dims": 1536}},
     "custom_fact_extraction_prompt": CUSTOM_MEMORY_FACT_PROMPT
-    # "history_db_path": HISTORY_DB_PATH,
 }
 
-MEMORY_INSTANCE = Memory.from_config(DEFAULT_CONFIG)
+KNOWLEDGE_BASE_CONFIG = {
+    "version": "v1.1",
+    "vector_store": {
+        "provider": "elasticsearch",
+        "config": {
+            "collection_name":ELASTICSEARCH_COLLECTION_NAME,
+            "host": ELASTICSEARCH_URI,
+            "port": int(ELASTICSEARCH_PORT),
+            "auto_create_index": True,
+            "user": ELASTICSEARCH_USER,
+            "password": ELASTICSEARCH_PASSWORD,
+            "embedding_model_dims": 1536
+        },
+    },
+    "graph_store": {
+        "provider": "neo4j",
+        "url": NEO4J_URI,
+        "username": NEO4J_USERNAME,
+        "password": NEO4J_PASSWORD
+    },
+    "llm": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "temperature": 0.2, "model": "gemini-2.5-flash",  "max_tokens": 700000}},
+    "embedder": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "model": "gemini-embedding-001", "embedding_dims": 1536}},
+    "custom_fact_extraction_prompt": SYSTEM_KNOWLEDGE_EXTRACTION_PROMPT
+}
+MEMORY_INSTANCES: Dict[str, Memory] = {}
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        MEMORY_INSTANCES["general"] = Memory.from_config(DEFAULT_CONFIG)
+        MEMORY_INSTANCES["knowledge_base"] = Memory.from_config(KNOWLEDGE_BASE_CONFIG)
+
+        logging.info("Memory Instances Ready: general, knowledge_base")
+    except Exception as e:
+        logging.error(f"Failed to initialize memories: {e}")
+        raise e
+
+    yield
+    logging.info("Shutting Down: Cleaning up...")
+    MEMORY_INSTANCES.clear()
+
 
 app = FastAPI(
     title="Mem0 REST APIs",
-    description="A REST API for managing and searching memories for your AI Agents and Apps.",
+    description="A REST API for managing and searching memories.",
     version="1.0.0",
+    lifespan=lifespan
 )
 
 
@@ -127,6 +242,10 @@ class MemoryCreate(BaseModel):
     agent_id: Optional[str] = None
     run_id: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+    knowledge_type: Literal["general", "knowledge_base"] = Field(
+        default="general",
+        description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
+    )
 
 
 class SearchRequest(BaseModel):
@@ -135,6 +254,10 @@ class SearchRequest(BaseModel):
     run_id: Optional[str] = None
     agent_id: Optional[str] = None
     filters: Optional[Dict[str, Any]] = None
+    knowledge_type: Literal["general", "knowledge_base"] = Field(
+        default="general",
+        description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
+    )
 
 
 @app.post("/configure", summary="Configure Mem0")
@@ -151,20 +274,28 @@ def add_memory(memory_create: MemoryCreate):
     if not any([memory_create.user_id, memory_create.agent_id, memory_create.run_id]):
         raise HTTPException(status_code=400, detail="At least one identifier (user_id, agent_id, run_id) is required.")
 
-    params = {k: v for k, v in memory_create.model_dump().items() if v is not None and k != "messages"}
+    params = {
+        k: v for k, v in memory_create.model_dump().items()
+        if v is not None and k not in ["messages", "knowledge_type"]
+    }
+
     try:
-        response = MEMORY_INSTANCE.add(messages=[m.model_dump() for m in memory_create.messages], **params)
+        CURRENT_MEMORY_INSTANCE = get_mem(memory_create.knowledge_type)
+        response = CURRENT_MEMORY_INSTANCE.add(messages=[m.model_dump() for m in memory_create.messages], **params)
         return JSONResponse(content=response)
     except Exception as e:
         logging.exception("Error in add_memory:")  # This will log the full traceback
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/memories", summary="Get memories")
 def get_all_memories(
         user_id: Optional[str] = None,
         run_id: Optional[str] = None,
         agent_id: Optional[str] = None,
+        knowledge_type: Literal["general", "knowledge_base"] = Query(
+        default="general",
+        description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
+    )
 ):
     """Retrieve stored memories."""
     if not any([user_id, run_id, agent_id]):
@@ -173,17 +304,23 @@ def get_all_memories(
         params = {
             k: v for k, v in {"user_id": user_id, "run_id": run_id, "agent_id": agent_id}.items() if v is not None
         }
-        return MEMORY_INSTANCE.get_all(**params)
+        CURRENT_MEMORY_INSTANCE = get_mem(knowledge_type)
+        return CURRENT_MEMORY_INSTANCE.get_all(**params)
     except Exception as e:
         logging.exception("Error in get_all_memories:")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/memories/{memory_id}", summary="Get a memory")
-def get_memory(memory_id: str):
+def get_memory(memory_id: str,
+    knowledge_type: Literal["general", "knowledge_base"] = Query(
+        default="general",
+        description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
+    )):
     """Retrieve a specific memory by ID."""
     try:
-        return MEMORY_INSTANCE.get(memory_id)
+        CURRENT_MEMORY_INSTANCE = get_mem(knowledge_type)
+        return CURRENT_MEMORY_INSTANCE.get(memory_id)
     except Exception as e:
         logging.exception("Error in get_memory:")
         raise HTTPException(status_code=500, detail=str(e))
@@ -193,46 +330,60 @@ def get_memory(memory_id: str):
 def search_memories(search_req: SearchRequest):
     """Search for memories based on a query."""
     try:
-        params = {k: v for k, v in search_req.model_dump().items() if v is not None and k != "query"}
-        return MEMORY_INSTANCE.search(query=search_req.query, **params)
+        params = {k: v for k, v in search_req.model_dump().items()
+                  if v is not None and k not in ["query", "knowledge_type"]}
+        CURRENT_MEMORY_INSTANCE = get_mem(search_req.knowledge_type)
+        return CURRENT_MEMORY_INSTANCE.search(query=search_req.query, **params)
     except Exception as e:
         logging.exception("Error in search_memories:")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.put("/memories/{memory_id}", summary="Update a memory")
-def update_memory(memory_id: str, updated_memory: Dict[str, Any]):
+def update_memory(memory_id: str, updated_memory: Dict[str, Any], knowledge_type: Literal["general", "knowledge_base"] = Query(
+        default="general",
+        description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
+    )):
     """Update an existing memory with new content.
-    
+
     Args:
         memory_id (str): ID of the memory to update
         updated_memory (str): New content to update the memory with
-        
+
     Returns:
         dict: Success message indicating the memory was updated
     """
     try:
-        return MEMORY_INSTANCE.update(memory_id=memory_id, data=updated_memory)
+        CURRENT_MEMORY_INSTANCE = get_mem(knowledge_type)
+        return CURRENT_MEMORY_INSTANCE.update(memory_id=memory_id, data=updated_memory)
     except Exception as e:
         logging.exception("Error in update_memory:")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/memories/{memory_id}/history", summary="Get memory history")
-def memory_history(memory_id: str):
+def memory_history(memory_id: str, knowledge_type: Literal["general", "knowledge_base"] = Query(
+        default="general",
+        description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
+    )):
     """Retrieve memory history."""
     try:
-        return MEMORY_INSTANCE.history(memory_id=memory_id)
+        CURRENT_MEMORY_INSTANCE = get_mem(knowledge_type)
+        return CURRENT_MEMORY_INSTANCE.history(memory_id=memory_id)
     except Exception as e:
         logging.exception("Error in memory_history:")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.delete("/memories/{memory_id}", summary="Delete a memory")
-def delete_memory(memory_id: str):
+def delete_memory(memory_id: str, knowledge_type: Literal["general", "knowledge_base"] = Query(
+        default="general",
+        description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
+    )):
     """Delete a specific memory by ID."""
     try:
-        MEMORY_INSTANCE.delete(memory_id=memory_id)
+        CURRENT_MEMORY_INSTANCE = get_mem(knowledge_type)
+        return CURRENT_MEMORY_INSTANCE.delete(memory_id=memory_id)
         return {"message": "Memory deleted successfully"}
     except Exception as e:
         logging.exception("Error in delete_memory:")
@@ -244,6 +395,10 @@ def delete_all_memories(
         user_id: Optional[str] = None,
         run_id: Optional[str] = None,
         agent_id: Optional[str] = None,
+        knowledge_type: Literal["general", "knowledge_base"] = Query(
+        default="general",
+        description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
+    )
 ):
     """Delete all memories for a given identifier."""
     if not any([user_id, run_id, agent_id]):
@@ -252,7 +407,8 @@ def delete_all_memories(
         params = {
             k: v for k, v in {"user_id": user_id, "run_id": run_id, "agent_id": agent_id}.items() if v is not None
         }
-        MEMORY_INSTANCE.delete_all(**params)
+        CURRENT_MEMORY_INSTANCE = get_mem(knowledge_type)
+        CURRENT_MEMORY_INSTANCE.delete_all(**params)
         return {"message": "All relevant memories deleted"}
     except Exception as e:
         logging.exception("Error in delete_all_memories:")
@@ -261,10 +417,14 @@ def delete_all_memories(
 
 @app.post("/reset", summary="Reset all memories")
 def reset_memory():
-    """Completely reset stored memories."""
+    """Completely reset stored memories for ALL instances."""
     try:
-        MEMORY_INSTANCE.reset()
-        return {"message": "All memories reset"}
+        for mode, instance in MEMORY_INSTANCES.items():
+            logging.info(f"Resetting memory instance: {mode}")
+            instance.reset()
+
+        return {
+            "message": f"Successfully reset instances: {list(MEMORY_INSTANCES.keys())}"}
     except Exception as e:
         logging.exception("Error in reset_memory:")
         raise HTTPException(status_code=500, detail=str(e))
@@ -274,3 +434,9 @@ def reset_memory():
 def home():
     """Redirect to the OpenAPI documentation."""
     return RedirectResponse(url="/docs")
+
+def get_mem(mode: str) -> Memory:
+    instance = MEMORY_INSTANCES.get(mode)
+    if not instance:
+        raise HTTPException(status_code=500, detail=f"Memory instance '{mode}' not initialized.")
+    return instance
