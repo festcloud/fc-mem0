@@ -99,7 +99,7 @@ DEFAULT_CONFIG = {
         "provider": "neo4j",
         "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD, "database": "neo4j"},
     },
-    "llm": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "temperature": 0.2, "model": "gemini-2.5-flash"}},
+    "llm": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "temperature": 0.2, "model": "gemini-2.5-flash", "max_tokens": 124000}},
     "embedder": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "model": "gemini-embedding-001", "embedding_dims": 1536}},
     "custom_fact_extraction_prompt": CUSTOM_MEMORY_FACT_PROMPT
     # "history_db_path": HISTORY_DB_PATH,
