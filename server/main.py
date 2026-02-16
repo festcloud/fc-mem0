@@ -156,6 +156,33 @@ Your goal is to "flatten" hierarchical or narrative information into a list of i
 }
 """
 
+SYSTEM_ARTIFACT_KNOWLEDGE_EXTRACTION_PROMPT = """### Technical Artifact Extraction Assistant
+
+You are a specialized agent designed to identify and extract **Technical Artifacts** (Code, Queries, Schemas, Templates, and Configuration Blocks) from complex data sources. 
+
+**CORE OBJECTIVE:**
+Extract technical objects **integrally** and pair them with a concise description. You must preserve the original view of the artifact (syntax, brackets, and quotes) exactly as they appear in the source. Ignore general narrative facts that do not describe an artifact.
+
+**EXTRACTION RULES:**
+1. **Artifact Identification:** Treat the following as artifacts: Database Queries, Data Schemas (JSON-Schema, XSD), Code Snippets, Regex, Metaschemata, or specific Template structures.
+2. **Format:** Each entry must follow the exact pattern: `[Short Description] - [Integral Artifact]`.
+3. **Integrity:** Do not truncate, summarize, or rephrase the internal logic of the artifact. It must be a 1:1 functional copy.
+4. **Contextual Labeling:** Use the source hierarchy (JSON keys, XML tags, or surrounding text) to create a short "anchor" description.
+5. **Output Format:** Strictly return JSON: `{"facts": ["Description - Artifact", "Description - Artifact"]}`.
+
+**EXAMPLES:**
+# 
+# **Input:**
+# "The system uses a specific regex for email validation: `^[a-zA-Z0-0._%+-]+@[a-zA-Z0-0.-]+\.[a-zA-Z]{2,}$`."
+# **Output:**
+# {"facts": ["Regex pattern for email validation - [^[a-zA-Z0-0._%+-]+@[a-zA-Z0-0.-]+\\.[a-zA-Z]{2,}$]"]}
+
+**Input:**
+{"module": "Auth", "config": {"init_query": "SELECT * FROM sessions WHERE active = 1;", "schema": { "type": "string", "minLength": 8 }}}
+**Output:**
+{"facts": ["Initial session retrieval query - [SELECT * FROM sessions WHERE active = 1;]", "Authentication module validation schema - [{ \"type\": \"string\", \"minLength\": 8 }]"]}
+"""
+
 DEFAULT_CONFIG = {
     "version": "v1.1",
     "vector_store": {
@@ -172,9 +199,7 @@ DEFAULT_CONFIG = {
     },
     "graph_store": {
         "provider": "neo4j",
-        "url": NEO4J_URI,
-        "username": NEO4J_USERNAME,
-        "password": NEO4J_PASSWORD
+        "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD, "database": "neo4j"},
     },
     "llm": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "temperature": 0.2, "model": "gemini-2.5-flash", "max_tokens": 124000}},
     "embedder": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "model": "gemini-embedding-001", "embedding_dims": 1536}},
@@ -197,13 +222,33 @@ KNOWLEDGE_BASE_CONFIG = {
     },
     "graph_store": {
         "provider": "neo4j",
-        "url": NEO4J_URI,
-        "username": NEO4J_USERNAME,
-        "password": NEO4J_PASSWORD
+        "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD, "database": "neo4j"},
     },
     "llm": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "temperature": 0.2, "model": "gemini-2.5-flash",  "max_tokens": 700000}},
     "embedder": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "model": "gemini-embedding-001", "embedding_dims": 1536}},
     "custom_fact_extraction_prompt": SYSTEM_KNOWLEDGE_EXTRACTION_PROMPT
+}
+ARTIFACT_BASE_CONFIG = {
+    "version": "v1.1",
+    "vector_store": {
+        "provider": "elasticsearch",
+        "config": {
+            "collection_name":ELASTICSEARCH_COLLECTION_NAME,
+            "host": ELASTICSEARCH_URI,
+            "port": int(ELASTICSEARCH_PORT),
+            "auto_create_index": True,
+            "user": ELASTICSEARCH_USER,
+            "password": ELASTICSEARCH_PASSWORD,
+            "embedding_model_dims": 1536
+        },
+    },
+    "graph_store": {
+        "provider": "neo4j",
+        "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD, "database": "neo4j"},
+    },
+    "llm": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "temperature": 0.2, "model": "gemini-2.5-flash",  "max_tokens": 700000}},
+    "embedder": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "model": "gemini-embedding-001", "embedding_dims": 1536}},
+    "custom_fact_extraction_prompt": SYSTEM_ARTIFACT_KNOWLEDGE_EXTRACTION_PROMPT
 }
 MEMORY_INSTANCES: Dict[str, Memory] = {}
 
@@ -212,6 +257,8 @@ async def lifespan(app: FastAPI):
     try:
         MEMORY_INSTANCES["general"] = Memory.from_config(DEFAULT_CONFIG)
         MEMORY_INSTANCES["knowledge_base"] = Memory.from_config(KNOWLEDGE_BASE_CONFIG)
+        MEMORY_INSTANCES["artifact_base"] = Memory.from_config(
+            ARTIFACT_BASE_CONFIG)
 
         logging.info("Memory Instances Ready: general, knowledge_base")
     except Exception as e:
@@ -242,7 +289,7 @@ class MemoryCreate(BaseModel):
     agent_id: Optional[str] = None
     run_id: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
-    knowledge_type: Literal["general", "knowledge_base"] = Field(
+    knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Field(
         default="general",
         description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
     )
@@ -254,7 +301,7 @@ class SearchRequest(BaseModel):
     run_id: Optional[str] = None
     agent_id: Optional[str] = None
     filters: Optional[Dict[str, Any]] = None
-    knowledge_type: Literal["general", "knowledge_base"] = Field(
+    knowledge_type: Literal["general", "knowledge_base",  "artifact_base"] = Field(
         default="general",
         description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
     )
@@ -292,7 +339,7 @@ def get_all_memories(
         user_id: Optional[str] = None,
         run_id: Optional[str] = None,
         agent_id: Optional[str] = None,
-        knowledge_type: Literal["general", "knowledge_base"] = Query(
+        knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Query(
         default="general",
         description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
     )
@@ -313,7 +360,7 @@ def get_all_memories(
 
 @app.get("/memories/{memory_id}", summary="Get a memory")
 def get_memory(memory_id: str,
-    knowledge_type: Literal["general", "knowledge_base"] = Query(
+    knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Query(
         default="general",
         description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
     )):
@@ -340,7 +387,7 @@ def search_memories(search_req: SearchRequest):
 
 
 @app.put("/memories/{memory_id}", summary="Update a memory")
-def update_memory(memory_id: str, updated_memory: Dict[str, Any], knowledge_type: Literal["general", "knowledge_base"] = Query(
+def update_memory(memory_id: str, updated_memory: Dict[str, Any], knowledge_type: Literal["general", "artifact_base"] = Query(
         default="general",
         description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
     )):
@@ -362,7 +409,7 @@ def update_memory(memory_id: str, updated_memory: Dict[str, Any], knowledge_type
 
 
 @app.get("/memories/{memory_id}/history", summary="Get memory history")
-def memory_history(memory_id: str, knowledge_type: Literal["general", "knowledge_base"] = Query(
+def memory_history(memory_id: str, knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Query(
         default="general",
         description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
     )):
@@ -376,7 +423,7 @@ def memory_history(memory_id: str, knowledge_type: Literal["general", "knowledge
 
 
 @app.delete("/memories/{memory_id}", summary="Delete a memory")
-def delete_memory(memory_id: str, knowledge_type: Literal["general", "knowledge_base"] = Query(
+def delete_memory(memory_id: str, knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Query(
         default="general",
         description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
     )):
@@ -395,7 +442,7 @@ def delete_all_memories(
         user_id: Optional[str] = None,
         run_id: Optional[str] = None,
         agent_id: Optional[str] = None,
-        knowledge_type: Literal["general", "knowledge_base"] = Query(
+        knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Query(
         default="general",
         description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
     )
