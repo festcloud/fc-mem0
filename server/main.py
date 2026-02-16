@@ -295,7 +295,7 @@ class MemoryCreate(BaseModel):
     agent_id: Optional[str] = None
     run_id: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
-    knowledge_type: Literal["general", "knowledge_base"] = Field(
+    knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Field(
         default="general",
         description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
     )
@@ -307,7 +307,7 @@ class SearchRequest(BaseModel):
     run_id: Optional[str] = None
     agent_id: Optional[str] = None
     filters: Optional[Dict[str, Any]] = None
-    knowledge_type: Literal["general", "knowledge_base"] = Field(
+    knowledge_type: Literal["general", "knowledge_base",  "artifact_base"] = Field(
         default="general",
         description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
     )
@@ -345,7 +345,7 @@ def get_all_memories(
         user_id: Optional[str] = None,
         run_id: Optional[str] = None,
         agent_id: Optional[str] = None,
-        knowledge_type: Literal["general", "knowledge_base"] = Query(
+        knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Query(
         default="general",
         description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
     )
@@ -366,7 +366,7 @@ def get_all_memories(
 
 @app.get("/memories/{memory_id}", summary="Get a memory")
 def get_memory(memory_id: str,
-    knowledge_type: Literal["general", "knowledge_base"] = Query(
+    knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Query(
         default="general",
         description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
     )):
@@ -393,7 +393,7 @@ def search_memories(search_req: SearchRequest):
 
 
 @app.put("/memories/{memory_id}", summary="Update a memory")
-def update_memory(memory_id: str, updated_memory: Dict[str, Any], knowledge_type: Literal["general", "knowledge_base"] = Query(
+def update_memory(memory_id: str, updated_memory: Dict[str, Any], knowledge_type: Literal["general", "artifact_base"] = Query(
         default="general",
         description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
     )):
@@ -415,7 +415,7 @@ def update_memory(memory_id: str, updated_memory: Dict[str, Any], knowledge_type
 
 
 @app.get("/memories/{memory_id}/history", summary="Get memory history")
-def memory_history(memory_id: str, knowledge_type: Literal["general", "knowledge_base"] = Query(
+def memory_history(memory_id: str, knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Query(
         default="general",
         description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
     )):
@@ -429,7 +429,7 @@ def memory_history(memory_id: str, knowledge_type: Literal["general", "knowledge
 
 
 @app.delete("/memories/{memory_id}", summary="Delete a memory")
-def delete_memory(memory_id: str, knowledge_type: Literal["general", "knowledge_base"] = Query(
+def delete_memory(memory_id: str, knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Query(
         default="general",
         description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
     )):
@@ -448,7 +448,7 @@ def delete_all_memories(
         user_id: Optional[str] = None,
         run_id: Optional[str] = None,
         agent_id: Optional[str] = None,
-        knowledge_type: Literal["general", "knowledge_base"] = Query(
+        knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Query(
         default="general",
         description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
     )
