@@ -171,11 +171,11 @@ Extract technical objects **integrally** and pair them with a concise descriptio
 5. **Output Format:** Strictly return JSON: `{"facts": ["Description - Artifact", "Description - Artifact"]}`.
 
 **EXAMPLES:**
-
-**Input:**
-"The system uses a specific regex for email validation: `^[a-zA-Z0-0._%+-]+@[a-zA-Z0-0.-]+\.[a-zA-Z]{2,}$`."
-**Output:**
-{"facts": ["Regex pattern for email validation - [^[a-zA-Z0-0._%+-]+@[a-zA-Z0-0.-]+\\.[a-zA-Z]{2,}$]"]}
+# 
+# **Input:**
+# "The system uses a specific regex for email validation: `^[a-zA-Z0-0._%+-]+@[a-zA-Z0-0.-]+\.[a-zA-Z]{2,}$`."
+# **Output:**
+# {"facts": ["Regex pattern for email validation - [^[a-zA-Z0-0._%+-]+@[a-zA-Z0-0.-]+\\.[a-zA-Z]{2,}$]"]}
 
 **Input:**
 {"module": "Auth", "config": {"init_query": "SELECT * FROM sessions WHERE active = 1;", "schema": { "type": "string", "minLength": 8 }}}
