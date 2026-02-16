@@ -6,5 +6,5 @@ python-dotenv==1.0.1
 psycopg[pool]>=3.2.8
 google-genai==1.48.0
 elasticsearch>=8.0.0,<9.0.0
-langchain-neo4j<=0.6.0
+langchain-neo4j>=0.6.0, <=0.7.0
 rank-bm25>=0.2.2
