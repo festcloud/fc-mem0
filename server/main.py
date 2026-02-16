@@ -171,11 +171,11 @@ Extract technical objects **integrally** and pair them with a concise descriptio
 5. **Output Format:** Strictly return JSON: `{"facts": ["Description - Artifact", "Description - Artifact"]}`.
 
 **EXAMPLES:**
-# 
-# **Input:**
-# "The system uses a specific regex for email validation: `^[a-zA-Z0-0._%+-]+@[a-zA-Z0-0.-]+\.[a-zA-Z]{2,}$`."
-# **Output:**
-# {"facts": ["Regex pattern for email validation - [^[a-zA-Z0-0._%+-]+@[a-zA-Z0-0.-]+\\.[a-zA-Z]{2,}$]"]}
+
+**Input:**
+"The system uses a specific regex for email validation: `^[a-zA-Z0-0._%+-]+@[a-zA-Z0-0.-]+\.[a-zA-Z]{2,}$`."
+**Output:**
+{"facts": ["Regex pattern for email validation - [^[a-zA-Z0-0._%+-]+@[a-zA-Z0-0.-]+\\.[a-zA-Z]{2,}$]"]}
 
 **Input:**
 {"module": "Auth", "config": {"init_query": "SELECT * FROM sessions WHERE active = 1;", "schema": { "type": "string", "minLength": 8 }}}
@@ -199,7 +199,9 @@ DEFAULT_CONFIG = {
     },
     "graph_store": {
         "provider": "neo4j",
-        "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD, "database": "neo4j"},
+        "url": NEO4J_URI,
+        "username": NEO4J_USERNAME,
+        "password": NEO4J_PASSWORD
     },
     "llm": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "temperature": 0.2, "model": "gemini-2.5-flash", "max_tokens": 124000}},
     "embedder": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "model": "gemini-embedding-001", "embedding_dims": 1536}},
@@ -222,7 +224,9 @@ KNOWLEDGE_BASE_CONFIG = {
     },
     "graph_store": {
         "provider": "neo4j",
-        "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD, "database": "neo4j"},
+        "url": NEO4J_URI,
+        "username": NEO4J_USERNAME,
+        "password": NEO4J_PASSWORD
     },
     "llm": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "temperature": 0.2, "model": "gemini-2.5-flash",  "max_tokens": 700000}},
     "embedder": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "model": "gemini-embedding-001", "embedding_dims": 1536}},
@@ -244,7 +248,9 @@ ARTIFACT_BASE_CONFIG = {
     },
     "graph_store": {
         "provider": "neo4j",
-        "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD, "database": "neo4j"},
+        "url": NEO4J_URI,
+        "username": NEO4J_USERNAME,
+        "password": NEO4J_PASSWORD
     },
     "llm": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "temperature": 0.2, "model": "gemini-2.5-flash",  "max_tokens": 700000}},
     "embedder": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "model": "gemini-embedding-001", "embedding_dims": 1536}},
