@@ -191,7 +191,7 @@ BASE_CONFIG = {
         "config": {
             "collection_name": ELASTICSEARCH_COLLECTION_NAME,
             "host": ELASTICSEARCH_URI,
-            "port": int(ELASTICSEARCH_PORT or 9200),
+            "port": int(ELASTICSEARCH_PORT),
             "auto_create_index": True,
             "user": ELASTICSEARCH_USER,
             "password": ELASTICSEARCH_PASSWORD,
