@@ -1,5 +1,6 @@
 import logging
 import os
+import copy
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Literal
@@ -183,7 +184,7 @@ Extract technical objects **integrally** and pair them with a concise descriptio
 {"facts": ["Initial session retrieval query - [SELECT * FROM sessions WHERE active = 1;]", "Authentication module validation schema - [{ \"type\": \"string\", \"minLength\": 8 }]"]}
 """
 
-DEFAULT_CONFIG = {
+BASE_CONFIG = {
     "version": "v1.1",
     "vector_store": {
         "provider": "elasticsearch",
@@ -199,63 +200,36 @@ DEFAULT_CONFIG = {
     },
     "graph_store": {
         "provider": "neo4j",
-        "url": NEO4J_URI,
-        "username": NEO4J_USERNAME,
-        "password": NEO4J_PASSWORD
+        "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD, "database": "neo4j"},
     },
-    "llm": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "temperature": 0.2, "model": "gemini-2.5-flash", "max_tokens": 124000}},
-    "embedder": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "model": "gemini-embedding-001", "embedding_dims": 1536}},
+    "llm": {
+        "provider": "gemini",
+        "config": {
+            "api_key": GOOGLEAI_API_KEY,
+            "temperature": 0.2,
+            "model": "gemini-2.5-flash",
+            "max_tokens": 700000
+        }
+    },
+    "embedder": {
+        "provider": "gemini",
+        "config": {
+            "api_key": GOOGLEAI_API_KEY,
+            "model": "gemini-embedding-001",
+            "embedding_dims": 1536
+        }
+    },
     "custom_fact_extraction_prompt": CUSTOM_MEMORY_FACT_PROMPT
 }
 
-KNOWLEDGE_BASE_CONFIG = {
-    "version": "v1.1",
-    "vector_store": {
-        "provider": "elasticsearch",
-        "config": {
-            "collection_name":ELASTICSEARCH_COLLECTION_NAME,
-            "host": ELASTICSEARCH_URI,
-            "port": int(ELASTICSEARCH_PORT),
-            "auto_create_index": True,
-            "user": ELASTICSEARCH_USER,
-            "password": ELASTICSEARCH_PASSWORD,
-            "embedding_model_dims": 1536
-        },
-    },
-    "graph_store": {
-        "provider": "neo4j",
-        "url": NEO4J_URI,
-        "username": NEO4J_USERNAME,
-        "password": NEO4J_PASSWORD
-    },
-    "llm": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "temperature": 0.2, "model": "gemini-2.5-flash",  "max_tokens": 700000}},
-    "embedder": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "model": "gemini-embedding-001", "embedding_dims": 1536}},
-    "custom_fact_extraction_prompt": SYSTEM_KNOWLEDGE_EXTRACTION_PROMPT
-}
-ARTIFACT_BASE_CONFIG = {
-    "version": "v1.1",
-    "vector_store": {
-        "provider": "elasticsearch",
-        "config": {
-            "collection_name":ELASTICSEARCH_COLLECTION_NAME,
-            "host": ELASTICSEARCH_URI,
-            "port": int(ELASTICSEARCH_PORT),
-            "auto_create_index": True,
-            "user": ELASTICSEARCH_USER,
-            "password": ELASTICSEARCH_PASSWORD,
-            "embedding_model_dims": 1536
-        },
-    },
-    "graph_store": {
-        "provider": "neo4j",
-        "url": NEO4J_URI,
-        "username": NEO4J_USERNAME,
-        "password": NEO4J_PASSWORD
-    },
-    "llm": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "temperature": 0.2, "model": "gemini-2.5-flash",  "max_tokens": 700000}},
-    "embedder": {"provider": "gemini", "config": {"api_key": GOOGLEAI_API_KEY, "model": "gemini-embedding-001", "embedding_dims": 1536}},
-    "custom_fact_extraction_prompt": SYSTEM_ARTIFACT_KNOWLEDGE_EXTRACTION_PROMPT
-}
+DEFAULT_CONFIG = copy.deepcopy(BASE_CONFIG)
+
+KNOWLEDGE_BASE_CONFIG = copy.deepcopy(BASE_CONFIG)
+KNOWLEDGE_BASE_CONFIG["custom_fact_extraction_prompt"] = SYSTEM_KNOWLEDGE_EXTRACTION_PROMPT
+
+ARTIFACT_BASE_CONFIG = copy.deepcopy(BASE_CONFIG)
+ARTIFACT_BASE_CONFIG["custom_fact_extraction_prompt"] = SYSTEM_ARTIFACT_KNOWLEDGE_EXTRACTION_PROMPT
+
 MEMORY_INSTANCES: Dict[str, Memory] = {}
 
 @asynccontextmanager
