@@ -256,7 +256,7 @@ async def lifespan(app: FastAPI):
         MEMORY_INSTANCES["artifact_base"] = Memory.from_config(
             ARTIFACT_BASE_CONFIG)
 
-        logging.info("Memory Instances Ready: general, knowledge_base")
+        logging.info("Memory Instances Ready: general, knowledge_base, artifact_base")
     except Exception as e:
         logging.error(f"Failed to initialize memories: {e}")
         raise e
