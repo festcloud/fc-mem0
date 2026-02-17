@@ -43,7 +43,7 @@ MEMGRAPH_PASSWORD = os.environ.get("MEMGRAPH_PASSWORD", "mem0graph")
 GOOGLEAI_API_KEY = os.environ.get("GOOGLE_API_KEY")
 HISTORY_DB_PATH = os.environ.get("HISTORY_DB_PATH", "/app/history/history.db")
 
-CUSTOM_MEMORY_FACT_PROMPT = f"""You are a Persona information Agent. Your goal is to distill a 2-message interaction between user and agent into high-value, long-term insights about the user.
+FACT_EXTRACTION_PROMPT_USER_INFO = f"""You are a Persona information Agent. Your goal is to distill a 2-message interaction between user and agent into high-value, long-term insights about the user.
 
 CORE EXTRACTION PHILOSOPHY:
 Extract only what defines the user’s world (people, commitments, data) or the user’s unique "voice". Ignore all agent-centric data, general knowledge, or fleeting questions.
@@ -98,7 +98,7 @@ Agent: {{agent_response}}
 
 Output:"""
 
-SYSTEM_KNOWLEDGE_EXTRACTION_PROMPT = """You are a Knowledge Extraction Assistant designed to process complex data sources (Text, JSON, XML, Documentation) and convert them into atomic, factual statements.
+FACT_EXTRACTION_PROMPT_SYSTEM_KNOWLEDGE = """You are a Knowledge Extraction Assistant designed to process complex data sources (Text, JSON, XML, Documentation) and convert them into atomic, factual statements.
 
 Your goal is to "flatten" hierarchical or narrative information into a list of independent, truthful facts that can be stored in a vector database or knowledge graph.
 
@@ -172,7 +172,7 @@ Your goal is to "flatten" hierarchical or narrative information into a list of i
 }
 """
 
-SYSTEM_ARTIFACT_KNOWLEDGE_EXTRACTION_PROMPT = """### Technical Artifact Extraction Assistant
+FACT_EXTRACTION_PROMPT_ARTIFACT_KNOWLEDGE = """### Technical Artifact Extraction Assistant
 
 You are a specialized agent designed to identify and extract **Technical Artifacts** (Code, Queries, Schemas, Templates, and Configuration Blocks) from complex data sources. 
 
@@ -233,30 +233,29 @@ BASE_CONFIG = {
             "model": "gemini-embedding-001",
             "embedding_dims": 1536
         }
-    },
-    "custom_fact_extraction_prompt": None
+    }
 }
 
-DEFAULT_CONFIG = copy.deepcopy(BASE_CONFIG)
-DEFAULT_CONFIG["custom_fact_extraction_prompt"] = CUSTOM_MEMORY_FACT_PROMPT
+USER_INFO_CONFIG = copy.deepcopy(BASE_CONFIG)
+USER_INFO_CONFIG["custom_fact_extraction_prompt"] = FACT_EXTRACTION_PROMPT_USER_INFO
 
 KNOWLEDGE_BASE_CONFIG = copy.deepcopy(BASE_CONFIG)
-KNOWLEDGE_BASE_CONFIG["custom_fact_extraction_prompt"] = SYSTEM_KNOWLEDGE_EXTRACTION_PROMPT
+KNOWLEDGE_BASE_CONFIG["custom_fact_extraction_prompt"] = FACT_EXTRACTION_PROMPT_SYSTEM_KNOWLEDGE
 
 ARTIFACT_BASE_CONFIG = copy.deepcopy(BASE_CONFIG)
-ARTIFACT_BASE_CONFIG["custom_fact_extraction_prompt"] = SYSTEM_ARTIFACT_KNOWLEDGE_EXTRACTION_PROMPT
+ARTIFACT_BASE_CONFIG["custom_fact_extraction_prompt"] = FACT_EXTRACTION_PROMPT_ARTIFACT_KNOWLEDGE
 
 MEMORY_INSTANCES: Dict[str, Memory] = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        MEMORY_INSTANCES["general"] = Memory.from_config(DEFAULT_CONFIG)
+        MEMORY_INSTANCES["user_info"] = Memory.from_config(USER_INFO_CONFIG)
         MEMORY_INSTANCES["knowledge_base"] = Memory.from_config(KNOWLEDGE_BASE_CONFIG)
         MEMORY_INSTANCES["artifact_base"] = Memory.from_config(
             ARTIFACT_BASE_CONFIG)
 
-        logging.info("Memory Instances Ready: general, knowledge_base, artifact_base")
+        logging.info("Memory Instances Ready: user_info, knowledge_base, artifact_base")
     except Exception as e:
         logging.error(f"Failed to initialize memories: {e}")
         raise e
@@ -285,9 +284,9 @@ class MemoryCreate(BaseModel):
     agent_id: Optional[str] = None
     run_id: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
-    knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Field(
-        default="general",
-        description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
+    knowledge_type: Literal["user_info", "knowledge_base", "artifact_base"] = Field(
+        default="user_info",
+        description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
     )
 
 
@@ -297,9 +296,9 @@ class SearchRequest(BaseModel):
     run_id: Optional[str] = None
     agent_id: Optional[str] = None
     filters: Optional[Dict[str, Any]] = None
-    knowledge_type: Literal["general", "knowledge_base",  "artifact_base"] = Field(
-        default="general",
-        description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
+    knowledge_type: Literal["user_info", "knowledge_base",  "artifact_base"] = Field(
+        default="user_info",
+        description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
     )
 
 
@@ -335,9 +334,9 @@ def get_all_memories(
         user_id: Optional[str] = None,
         run_id: Optional[str] = None,
         agent_id: Optional[str] = None,
-        knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Query(
-        default="general",
-        description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
+        knowledge_type: Literal["user_info", "knowledge_base", "artifact_base"] = Query(
+        default="user_info",
+        description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
     )
 ):
     """Retrieve stored memories."""
@@ -356,9 +355,9 @@ def get_all_memories(
 
 @app.get("/memories/{memory_id}", summary="Get a memory")
 def get_memory(memory_id: str,
-    knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Query(
-        default="general",
-        description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
+    knowledge_type: Literal["user_info", "knowledge_base", "artifact_base"] = Query(
+        default="user_info",
+        description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
     )):
     """Retrieve a specific memory by ID."""
     try:
@@ -383,9 +382,9 @@ def search_memories(search_req: SearchRequest):
 
 
 @app.put("/memories/{memory_id}", summary="Update a memory")
-def update_memory(memory_id: str, updated_memory: Dict[str, Any], knowledge_type: Literal["general", "artifact_base"] = Query(
-        default="general",
-        description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
+def update_memory(memory_id: str, updated_memory: Dict[str, Any], knowledge_type: Literal["user_info", "artifact_base"] = Query(
+        default="user_info",
+        description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
     )):
     """Update an existing memory with new content.
 
@@ -405,9 +404,9 @@ def update_memory(memory_id: str, updated_memory: Dict[str, Any], knowledge_type
 
 
 @app.get("/memories/{memory_id}/history", summary="Get memory history")
-def memory_history(memory_id: str, knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Query(
-        default="general",
-        description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
+def memory_history(memory_id: str, knowledge_type: Literal["user_info", "knowledge_base", "artifact_base"] = Query(
+        default="user_info",
+        description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
     )):
     """Retrieve memory history."""
     try:
@@ -419,9 +418,9 @@ def memory_history(memory_id: str, knowledge_type: Literal["general", "knowledge
 
 
 @app.delete("/memories/{memory_id}", summary="Delete a memory")
-def delete_memory(memory_id: str, knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Query(
-        default="general",
-        description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
+def delete_memory(memory_id: str, knowledge_type: Literal["user_info", "knowledge_base", "artifact_base"] = Query(
+        default="user_info",
+        description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
     )):
     """Delete a specific memory by ID."""
     try:
@@ -438,9 +437,9 @@ def delete_all_memories(
         user_id: Optional[str] = None,
         run_id: Optional[str] = None,
         agent_id: Optional[str] = None,
-        knowledge_type: Literal["general", "knowledge_base", "artifact_base"] = Query(
-        default="general",
-        description="Select the type of memory to be created: 'general' for personal facts, 'knowledge_base' for system information."
+        knowledge_type: Literal["user_info", "knowledge_base", "artifact_base"] = Query(
+        default="user_info",
+        description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
     )
 ):
     """Delete all memories for a given identifier."""
