@@ -241,9 +241,11 @@ USER_INFO_CONFIG["custom_fact_extraction_prompt"] = FACT_EXTRACTION_PROMPT_USER_
 
 KNOWLEDGE_BASE_CONFIG = copy.deepcopy(BASE_CONFIG)
 KNOWLEDGE_BASE_CONFIG["custom_fact_extraction_prompt"] = FACT_EXTRACTION_PROMPT_SYSTEM_KNOWLEDGE
+KNOWLEDGE_BASE_CONFIG["llm"]["config"]["model"] = "gemini-3-flash-preview"
 
 ARTIFACT_BASE_CONFIG = copy.deepcopy(BASE_CONFIG)
 ARTIFACT_BASE_CONFIG["custom_fact_extraction_prompt"] = FACT_EXTRACTION_PROMPT_ARTIFACT_KNOWLEDGE
+ARTIFACT_BASE_CONFIG["llm"]["config"]["model"] = "gemini-3-flash-preview"
 
 MEMORY_INSTANCES: Dict[str, Memory] = {}
 
