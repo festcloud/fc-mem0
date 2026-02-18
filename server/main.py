@@ -221,7 +221,7 @@ BASE_CONFIG = {
         "provider": "gemini",
         "config": {
             "api_key": GOOGLEAI_API_KEY,
-            "temperature": 0.1,
+            "temperature": 0.2,
             "model": "gemini-2.5-flash",
             "max_tokens": 700000
         }
