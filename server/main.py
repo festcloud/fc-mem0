@@ -53,34 +53,38 @@ EXTRACTION DOMAINS:
 2. Behavioral Fingerprint: Analyze the user's communication "vibe." This includes emotional baseline, specific recurring vocabulary, and structural preferences. If the style is neutral, do not record a style fact.
 
 RULES:
+- Statelessness Priority: Do NOT save time-series or volatile data that is subject to frequent change (e.g., current task lists, active calendar events, temporary contact lists, or real-time status). Only extract information that serves as a long-term "source of truth" about the user's identity or permanent environment.
+- Strict Grounding: If the provided CONVERSATION section is empty, null, or contains no substantial information from the user, you MUST return {{"facts": []}}. Do not hallucinate, imagine, or generate any facts based on the instructions, extraction domains, or few-shot examples if no input data is present.
 - User's personal information: Save personal data points, but skip logging the user's intent or the act of asking. Record the info, not the interaction
 - Exclusivity: Focus 100% on the User. If the Agent describes itself or its skills, discard it.
 - Value Threshold: Ask "Would this insight help a human assistant serve this user better in a month?" If no, return {{"facts": []}}.
+- Normalize the language comprehensively: "I absolutely adore eating chocolate ice cream", "I like ice cream", and "Ice cream is my favorite" MUST all be extracted normalized to the core semantic truth: "User likes ice cream"
 - Perspective: Always normalize to the third person (e.g., "User's goal is..." or "User tends to be...").
 - Format: Output must be strictly valid JSON: {{"facts": ["Insight 1", "Insight 2"]}}.
 
 EXAMPLES:
 
-**Example 1: Extracting Result, Ignoring Request**
-User: "What are the phone numbers for my key clients?"
-Agent: "Your key clients are Mr. Smith (+1999...) and Mrs. Gable (+1888...)."
+**Example 1: Skipping Volatile/Time-Series Data**
+User: "What is my schedule for today and who are my contacts?"
+Agent: "You have a meeting at 2 PM with Sarah, and your contacts are John and Mary."
 Output:
 {{
-  "facts": [
-    "User's key clients are Mr. Smith (+1999...) and Mrs. Gable (+1888...)."
-  ]
+  "facts": []
 }}
-*(Note: No mention of the user asking; only the data provided is stored.)*
+*(Note: Today's schedule and current contact lists are dynamic "state" data and should not be stored as permanent facts.)*
 
-**Example 2: Behavioral & Contextual Data**
-User: "I need to prep for the sync with Mark about the Apollo project. I'm feeling a bit stressed about the deadline."
-Agent: "I can help you organize those notes. What is the main concern regarding the Apollo deadline?"
+**Example 2: Contextual/Permanent Data**
+User: "I'm stressed about the Apollo project. Mark always asks for the budget updates early."
+Agent: "I understand. Would you like to prep the budget now?"
 Output:
 {{
   "facts": [
     "User is working on a project named 'Apollo'.",
-    "User has a professional contact or teammate named Mark."  ]
+    "User has a professional contact named Mark.",
+    "User's colleague Mark typically requests budget updates ahead of schedule."
+  ]
 }}
+*(Note: Project names and recurring behavioral patterns of contacts are stable context.)*
 
 **Example 3: Privacy/Out-of-Scope (Other Users)**
 User: "What is on John Doe's calendar for tomorrow?"
@@ -97,6 +101,30 @@ User: {{user_request}}
 Agent: {{agent_response}}
 
 Output:"""
+
+FACT_UPDATE_PROMPT_USER_INFO = f"""You are an intelligent memory reconciliation engine. 
+You are provided with a list of 'New Facts' and a list of 'Existing Memories' retrieved from a database.
+Your absolute priority is to PREVENT DUPLICATION. 
+You must compare the New Facts against the Existing Memories and determine the exact operational event required.
+
+Rules for Categorizing Events:
+- NONE (Deduplication): If a New Fact conveys the exact same semantic information as an Existing Memory (e.g., New: "User likes ice cream" vs Existing: "User likes ice cream" OR New: "User's gender is Female" vs Existing: "User is female"), you MUST use the NONE event. If a user states a fact 20 times, it must only be stored once. Do not create duplicates.
+- UPDATE (Evolution): If a New Fact directly contradicts, replaces, or updates an Existing Memory (e.g., Existing: "User likes ice cream", New: "User hates ice cream"), you MUST use the UPDATE event. You must provide the exact ID of the memory being updated.
+- ADD (Novelty): If, and only if, a New Fact is entirely novel and semantically unrelated to any Existing Memory, use the ADD event.
+You must return your response in the following strict JSON structure only:
+"memory" : [
+    {{
+        "id" : "",
+        "text" : "fact",
+        "event" : "NONE"
+    }},
+    {{
+        "id" : "",
+        "text" : "fact",
+        "event" : "DELETE"
+    }}
+]
+"""
 
 FACT_EXTRACTION_PROMPT_SYSTEM_KNOWLEDGE = """You are a Knowledge Extraction Assistant designed to process complex data sources (Text, JSON, XML, Documentation) and convert them into atomic, factual statements.
 
@@ -216,13 +244,14 @@ BASE_CONFIG = {
     "graph_store": {
         "provider": "neo4j",
         "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD, "database": "neo4j"},
+        "threshold": 0.6
     },
     "llm": {
         "provider": "gemini",
         "config": {
             "api_key": GOOGLEAI_API_KEY,
             "temperature": 0.2,
-            "model": "gemini-2.5-flash",
+            "model": "gemini-3-flash-preview",
             "max_tokens": 700000
         }
     },
@@ -238,14 +267,14 @@ BASE_CONFIG = {
 
 USER_INFO_CONFIG = copy.deepcopy(BASE_CONFIG)
 USER_INFO_CONFIG["custom_fact_extraction_prompt"] = FACT_EXTRACTION_PROMPT_USER_INFO
+USER_INFO_CONFIG["custom_update_memory_prompt"] = FACT_UPDATE_PROMPT_USER_INFO
+
 
 KNOWLEDGE_BASE_CONFIG = copy.deepcopy(BASE_CONFIG)
 KNOWLEDGE_BASE_CONFIG["custom_fact_extraction_prompt"] = FACT_EXTRACTION_PROMPT_SYSTEM_KNOWLEDGE
-KNOWLEDGE_BASE_CONFIG["llm"]["config"]["model"] = "gemini-3-flash-preview"
 
 ARTIFACT_BASE_CONFIG = copy.deepcopy(BASE_CONFIG)
 ARTIFACT_BASE_CONFIG["custom_fact_extraction_prompt"] = FACT_EXTRACTION_PROMPT_ARTIFACT_KNOWLEDGE
-ARTIFACT_BASE_CONFIG["llm"]["config"]["model"] = "gemini-3-flash-preview"
 
 MEMORY_INSTANCES: Dict[str, Memory] = {}
 
@@ -318,6 +347,9 @@ def add_memory(memory_create: MemoryCreate):
     if not any([memory_create.user_id, memory_create.agent_id, memory_create.run_id]):
         raise HTTPException(status_code=400, detail="At least one identifier (user_id, agent_id, run_id) is required.")
 
+    if len(memory_create.messages) == 0:
+      return JSONResponse(
+        content={"message": "No content to memorize. Messages are empty"})
     params = {
         k: v for k, v in memory_create.model_dump().items()
         if v is not None and k not in ["messages", "knowledge_type"]
