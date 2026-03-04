@@ -1,6 +1,6 @@
+import copy
 import logging
 import os
-import copy
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Literal
@@ -16,7 +16,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 # Load environment variables
 load_dotenv()
-
 
 POSTGRES_HOST = os.environ.get("POSTGRES_HOST", "postgres")
 POSTGRES_PORT = os.environ.get("POSTGRES_PORT", "5432")
@@ -269,18 +268,23 @@ USER_INFO_CONFIG = copy.deepcopy(BASE_CONFIG)
 USER_INFO_CONFIG["custom_fact_extraction_prompt"] = FACT_EXTRACTION_PROMPT_USER_INFO
 USER_INFO_CONFIG["custom_update_memory_prompt"] = FACT_UPDATE_PROMPT_USER_INFO
 
-
 KNOWLEDGE_BASE_CONFIG = copy.deepcopy(BASE_CONFIG)
 KNOWLEDGE_BASE_CONFIG["custom_fact_extraction_prompt"] = FACT_EXTRACTION_PROMPT_SYSTEM_KNOWLEDGE
 
 ARTIFACT_BASE_CONFIG = copy.deepcopy(BASE_CONFIG)
 ARTIFACT_BASE_CONFIG["custom_fact_extraction_prompt"] = FACT_EXTRACTION_PROMPT_ARTIFACT_KNOWLEDGE
 
+LIGHT_CONFIG = copy.deepcopy(BASE_CONFIG)
+LIGHT_CONFIG["llm"]["config"]["model"] = "gemini-2.5-flash"
+
 MEMORY_INSTANCES: Dict[str, Memory] = {}
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
+        MEMORY_INSTANCES["base"] = Memory.from_config(BASE_CONFIG)
+        MEMORY_INSTANCES["light"] = Memory.from_config(LIGHT_CONFIG)
         MEMORY_INSTANCES["user_info"] = Memory.from_config(USER_INFO_CONFIG)
         MEMORY_INSTANCES["knowledge_base"] = Memory.from_config(KNOWLEDGE_BASE_CONFIG)
         MEMORY_INSTANCES["artifact_base"] = Memory.from_config(
@@ -315,7 +319,7 @@ class MemoryCreate(BaseModel):
     agent_id: Optional[str] = None
     run_id: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
-    knowledge_type: Literal["user_info", "knowledge_base", "artifact_base"] = Field(
+    knowledge_type: Literal["base", "light", "user_info", "knowledge_base", "artifact_base"] = Field(
         default="user_info",
         description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
     )
@@ -327,8 +331,8 @@ class SearchRequest(BaseModel):
     run_id: Optional[str] = None
     agent_id: Optional[str] = None
     filters: Optional[Dict[str, Any]] = None
-    knowledge_type: Literal["user_info", "knowledge_base",  "artifact_base"] = Field(
-        default="user_info",
+    knowledge_type: Literal["base", "light", "user_info", "knowledge_base", "artifact_base"] = Field(
+        default="light",
         description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
     )
 
@@ -348,8 +352,8 @@ def add_memory(memory_create: MemoryCreate):
         raise HTTPException(status_code=400, detail="At least one identifier (user_id, agent_id, run_id) is required.")
 
     if len(memory_create.messages) == 0:
-      return JSONResponse(
-        content={"message": "No content to memorize. Messages are empty"})
+        return JSONResponse(
+            content={"message": "No content to memorize. Messages are empty"})
     params = {
         k: v for k, v in memory_create.model_dump().items()
         if v is not None and k not in ["messages", "knowledge_type"]
@@ -363,15 +367,16 @@ def add_memory(memory_create: MemoryCreate):
         logging.exception("Error in add_memory:")  # This will log the full traceback
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/memories", summary="Get memories")
 def get_all_memories(
         user_id: Optional[str] = None,
         run_id: Optional[str] = None,
         agent_id: Optional[str] = None,
-        knowledge_type: Literal["user_info", "knowledge_base", "artifact_base"] = Query(
-        default="user_info",
-        description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
-    )
+        knowledge_type: Literal["base", "user_info", "knowledge_base", "artifact_base"] = Query(
+            default="light",
+            description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
+        )
 ):
     """Retrieve stored memories."""
     if not any([user_id, run_id, agent_id]):
@@ -389,10 +394,10 @@ def get_all_memories(
 
 @app.get("/memories/{memory_id}", summary="Get a memory")
 def get_memory(memory_id: str,
-    knowledge_type: Literal["user_info", "knowledge_base", "artifact_base"] = Query(
-        default="user_info",
-        description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
-    )):
+               knowledge_type: Literal["base", "light", "user_info", "knowledge_base", "artifact_base"] = Query(
+                   default="light",
+                   description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
+               )):
     """Retrieve a specific memory by ID."""
     try:
         CURRENT_MEMORY_INSTANCE = get_mem(knowledge_type)
@@ -416,10 +421,11 @@ def search_memories(search_req: SearchRequest):
 
 
 @app.put("/memories/{memory_id}", summary="Update a memory")
-def update_memory(memory_id: str, updated_memory: Dict[str, Any], knowledge_type: Literal["user_info", "artifact_base"] = Query(
-        default="user_info",
-        description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
-    )):
+def update_memory(memory_id: str, updated_memory: Dict[str, Any],
+                  knowledge_type: Literal["user_info", "artifact_base"] = Query(
+                      default="user_info",
+                      description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
+                  )):
     """Update an existing memory with new content.
 
     Args:
@@ -438,10 +444,10 @@ def update_memory(memory_id: str, updated_memory: Dict[str, Any], knowledge_type
 
 
 @app.get("/memories/{memory_id}/history", summary="Get memory history")
-def memory_history(memory_id: str, knowledge_type: Literal["user_info", "knowledge_base", "artifact_base"] = Query(
-        default="user_info",
-        description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
-    )):
+def memory_history(memory_id: str, knowledge_type: Literal["base", "light", "user_info", "knowledge_base", "artifact_base"] = Query(
+    default="light",
+    description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
+)):
     """Retrieve memory history."""
     try:
         CURRENT_MEMORY_INSTANCE = get_mem(knowledge_type)
@@ -452,10 +458,10 @@ def memory_history(memory_id: str, knowledge_type: Literal["user_info", "knowled
 
 
 @app.delete("/memories/{memory_id}", summary="Delete a memory")
-def delete_memory(memory_id: str, knowledge_type: Literal["user_info", "knowledge_base", "artifact_base"] = Query(
-        default="user_info",
-        description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
-    )):
+def delete_memory(memory_id: str, knowledge_type: Literal["base", "light", "user_info", "knowledge_base", "artifact_base"] = Query(
+    default="user_info",
+    description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
+)):
     """Delete a specific memory by ID."""
     try:
         CURRENT_MEMORY_INSTANCE = get_mem(knowledge_type)
@@ -471,10 +477,10 @@ def delete_all_memories(
         user_id: Optional[str] = None,
         run_id: Optional[str] = None,
         agent_id: Optional[str] = None,
-        knowledge_type: Literal["user_info", "knowledge_base", "artifact_base"] = Query(
-        default="user_info",
-        description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
-    )
+        knowledge_type: Literal["base", "light", "user_info", "knowledge_base", "artifact_base"] = Query(
+            default="user_info",
+            description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
+        )
 ):
     """Delete all memories for a given identifier."""
     if not any([user_id, run_id, agent_id]):
@@ -510,6 +516,7 @@ def reset_memory():
 def home():
     """Redirect to the OpenAPI documentation."""
     return RedirectResponse(url="/docs")
+
 
 def get_mem(mode: str) -> Memory:
     instance = MEMORY_INSTANCES.get(mode)
