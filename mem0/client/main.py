@@ -2,7 +2,7 @@ import hashlib
 import logging
 import os
 import warnings
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 import requests
@@ -161,15 +161,6 @@ class MemoryClient:
 
         kwargs = self._prepare_params(kwargs)
 
-        # Remove deprecated parameters
-        if "output_format" in kwargs:
-            warnings.warn(
-                "output_format parameter is deprecated and ignored. All responses now use v1.1 format.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            kwargs.pop("output_format")
-
         # Set async_mode to True by default, but allow user override
         if "async_mode" not in kwargs:
             kwargs["async_mode"] = True
@@ -228,7 +219,6 @@ class MemoryClient:
             MemoryNotFoundError: If the memory doesn't exist (for updates/deletes).
         """
         params = self._prepare_params(kwargs)
-        params.pop("output_format", None)  # Remove output_format for get operations
         params.pop("async_mode", None)
 
         if "page" in params and "page_size" in params:
@@ -280,7 +270,6 @@ class MemoryClient:
         """
         payload = {"query": query}
         params = self._prepare_params(kwargs)
-        params.pop("output_format", None)  # Remove output_format for search operations
         params.pop("async_mode", None)
 
         payload.update(params)
@@ -311,29 +300,34 @@ class MemoryClient:
         memory_id: str,
         text: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[Union[int, float, str]] = None,
     ) -> Dict[str, Any]:
         """
         Update a memory by ID.
-        
+
         Args:
             memory_id (str): Memory ID.
             text (str, optional): New content to update the memory with.
             metadata (dict, optional): Metadata to update in the memory.
-            
+            timestamp (int, float, or str, optional): Unix epoch timestamp or ISO 8601 string.
+
         Returns:
             Dict[str, Any]: The response from the server.
-            
+
         Example:
             >>> client.update(memory_id="mem_123", text="Likes to play tennis on weekends")
+            >>> client.update(memory_id="mem_123", timestamp="2025-01-15T12:00:00Z")
         """
-        if text is None and metadata is None:
-            raise ValueError("Either text or metadata must be provided for update.")
+        if text is None and metadata is None and timestamp is None:
+            raise ValueError("At least one of text, metadata, or timestamp must be provided for update.")
 
         payload = {}
         if text is not None:
             payload["text"] = text
         if metadata is not None:
             payload["metadata"] = metadata
+        if timestamp is not None:
+            payload["timestamp"] = timestamp
 
         capture_client_event("client.update", self, {"memory_id": memory_id, "sync_type": "sync"})
         params = self._prepare_params()
@@ -678,6 +672,10 @@ class MemoryClient:
         retrieval_criteria: Optional[List[Dict[str, Any]]] = None,
         enable_graph: Optional[bool] = None,
         version: Optional[str] = None,
+        inclusion_prompt: Optional[str] = None,
+        exclusion_prompt: Optional[str] = None,
+        memory_depth: Optional[str] = None,
+        usecase_setting: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Update the project settings.
 
@@ -687,6 +685,10 @@ class MemoryClient:
             retrieval_criteria: New retrieval criteria for the project
             enable_graph: Enable or disable the graph for the project
             version: Version of the project
+            inclusion_prompt: Inclusion prompt for the project
+            exclusion_prompt: Exclusion prompt for the project
+            memory_depth: Memory depth for the project
+            usecase_setting: Usecase setting for the project
 
         Returns:
             Dictionary containing the API response.
@@ -712,6 +714,10 @@ class MemoryClient:
             and retrieval_criteria is None
             and enable_graph is None
             and version is None
+            and inclusion_prompt is None
+            and exclusion_prompt is None
+            and memory_depth is None
+            and usecase_setting is None
         ):
             raise ValueError(
                 "Currently we only support updating custom_instructions or "
@@ -726,6 +732,10 @@ class MemoryClient:
                 "retrieval_criteria": retrieval_criteria,
                 "enable_graph": enable_graph,
                 "version": version,
+                "inclusion_prompt": inclusion_prompt,
+                "exclusion_prompt": exclusion_prompt,
+                "memory_depth": memory_depth,
+                "usecase_setting": usecase_setting,
             }
         )
         response = self.client.patch(
@@ -742,6 +752,10 @@ class MemoryClient:
                 "retrieval_criteria": retrieval_criteria,
                 "enable_graph": enable_graph,
                 "version": version,
+                "inclusion_prompt": inclusion_prompt,
+                "exclusion_prompt": exclusion_prompt,
+                "memory_depth": memory_depth,
+                "usecase_setting": usecase_setting,
                 "sync_type": "sync",
             },
         )
@@ -1103,15 +1117,6 @@ class AsyncMemoryClient:
 
         kwargs = self._prepare_params(kwargs)
 
-        # Remove deprecated parameters
-        if "output_format" in kwargs:
-            warnings.warn(
-                "output_format parameter is deprecated and ignored. All responses now use v1.1 format.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            kwargs.pop("output_format")
-
         # Set async_mode to True by default, but allow user override
         if "async_mode" not in kwargs:
             kwargs["async_mode"] = True
@@ -1137,7 +1142,6 @@ class AsyncMemoryClient:
     @api_error_handler
     async def get_all(self, **kwargs) -> Dict[str, Any]:
         params = self._prepare_params(kwargs)
-        params.pop("output_format", None)  # Remove output_format for get operations
         params.pop("async_mode", None)
 
         if "page" in params and "page_size" in params:
@@ -1171,7 +1175,6 @@ class AsyncMemoryClient:
     async def search(self, query: str, **kwargs) -> Dict[str, Any]:
         payload = {"query": query}
         params = self._prepare_params(kwargs)
-        params.pop("output_format", None)  # Remove output_format for search operations
         params.pop("async_mode", None)
 
         payload.update(params)
@@ -1198,30 +1201,38 @@ class AsyncMemoryClient:
 
     @api_error_handler
     async def update(
-        self, memory_id: str, text: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
+        self,
+        memory_id: str,
+        text: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[Union[int, float, str]] = None,
     ) -> Dict[str, Any]:
         """
         Update a memory by ID asynchronously.
-        
+
         Args:
             memory_id (str): Memory ID.
             text (str, optional): New content to update the memory with.
             metadata (dict, optional): Metadata to update in the memory.
-            
+            timestamp (int, float, or str, optional): Unix epoch timestamp or ISO 8601 string.
+
         Returns:
             Dict[str, Any]: The response from the server.
-            
+
         Example:
             >>> await client.update(memory_id="mem_123", text="Likes to play tennis on weekends")
+            >>> await client.update(memory_id="mem_123", timestamp="2025-01-15T12:00:00Z")
         """
-        if text is None and metadata is None:
-            raise ValueError("Either text or metadata must be provided for update.")
+        if text is None and metadata is None and timestamp is None:
+            raise ValueError("At least one of text, metadata, or timestamp must be provided for update.")
 
         payload = {}
         if text is not None:
             payload["text"] = text
         if metadata is not None:
             payload["metadata"] = metadata
+        if timestamp is not None:
+            payload["timestamp"] = timestamp
 
         capture_client_event("client.update", self, {"memory_id": memory_id, "sync_type": "async"})
         params = self._prepare_params()
