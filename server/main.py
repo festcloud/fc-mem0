@@ -1,6 +1,7 @@
 import copy
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Literal
@@ -237,13 +238,13 @@ BASE_CONFIG = {
             "auto_create_index": True,
             "user": ELASTICSEARCH_USER,
             "password": ELASTICSEARCH_PASSWORD,
-            "embedding_model_dims": 1536
+            "embedding_model_dims": 384
         },
     },
     "graph_store": {
         "provider": "neo4j",
         "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD, "database": "neo4j"},
-        "threshold": 0.6
+        "threshold": 0.75
     },
     "llm": {
         "provider": "gemini",
@@ -255,11 +256,10 @@ BASE_CONFIG = {
         }
     },
     "embedder": {
-        "provider": "gemini",
+        "provider": "huggingface",
         "config": {
-            "api_key": GOOGLEAI_API_KEY,
-            "model": "gemini-embedding-001",
-            "embedding_dims": 1536
+            "model": "BAAI/bge-small-en-v1.5",
+            "embedding_dims": 384
         }
     }
 }
@@ -348,6 +348,8 @@ def set_config(config: Dict[str, Any]):
 @app.post("/memories", summary="Create memories")
 def add_memory(memory_create: MemoryCreate):
     """Store new memories."""
+    start_time = time.perf_counter()
+
     if not any([memory_create.user_id, memory_create.agent_id, memory_create.run_id]):
         raise HTTPException(status_code=400, detail="At least one identifier (user_id, agent_id, run_id) is required.")
 
@@ -362,9 +364,13 @@ def add_memory(memory_create: MemoryCreate):
     try:
         CURRENT_MEMORY_INSTANCE = get_mem(memory_create.knowledge_type)
         response = CURRENT_MEMORY_INSTANCE.add(messages=[m.model_dump() for m in memory_create.messages], **params)
+
+        process_time = time.perf_counter() - start_time
+        logging.info(f"add_memory executed in {process_time:.4f} seconds")
+
         return JSONResponse(content=response)
     except Exception as e:
-        logging.exception("Error in add_memory:")  # This will log the full traceback
+        logging.exception("Error in add_memory:")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -410,11 +416,19 @@ def get_memory(memory_id: str,
 @app.post("/search", summary="Search memories")
 def search_memories(search_req: SearchRequest):
     """Search for memories based on a query."""
+    start_time = time.perf_counter()
+
     try:
         params = {k: v for k, v in search_req.model_dump().items()
                   if v is not None and k not in ["query", "knowledge_type"]}
         CURRENT_MEMORY_INSTANCE = get_mem(search_req.knowledge_type)
-        return CURRENT_MEMORY_INSTANCE.search(query=search_req.query, **params)
+
+        response = CURRENT_MEMORY_INSTANCE.search(query=search_req.query, **params)
+
+        process_time = time.perf_counter() - start_time
+        logging.info(f"search_memories executed in {process_time:.4f} seconds")
+
+        return response
     except Exception as e:
         logging.exception("Error in search_memories:")
         raise HTTPException(status_code=500, detail=str(e))
