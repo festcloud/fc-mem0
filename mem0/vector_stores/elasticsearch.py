@@ -140,6 +140,7 @@ class ElasticsearchDB(VectorStoreBase):
             search_query = self.custom_search_query(vectors, limit, filters)
         else:
             search_query = {
+                "size": 25,
                 "knn": {"field": "vector", "query_vector": vectors, "k": limit, "num_candidates": limit * 2}
             }
             if filters:
