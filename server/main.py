@@ -28,6 +28,7 @@ POSTGRES_COLLECTION_NAME = os.environ.get("POSTGRES_COLLECTION_NAME", "memories"
 NEO4J_URI = os.environ.get("NEO4J_URI", "bolt://neo4j:7687")
 NEO4J_USERNAME = os.environ.get("NEO4J_USERNAME", "neo4j")
 NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "mem0graph")
+NEO4J_DATABASE = os.environ.get("NEO4J_DATABASE", "neo4j")
 
 ELASTICSEARCH_URI = os.environ.get("ELASTICSEARCH_URI")
 ELASTICSEARCH_COLLECTION_NAME = os.environ.get("ELASTICSEARCH_COLLECTION_NAME")
@@ -243,7 +244,7 @@ BASE_CONFIG = {
     },
     "graph_store": {
         "provider": "neo4j",
-        "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD, "database": "neo4j"},
+        "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD, "database": NEO4J_DATABASE},
         "threshold": 0.75
     },
     "llm": {
