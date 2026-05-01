@@ -247,7 +247,8 @@ BASE_CONFIG = {
     },
     "graph_store": {
         "provider": "neo4j",
-        "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD, "database": NEO4J_DATABASE},
+        "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD,
+                   "database": NEO4J_DATABASE},
         "threshold": 0.75
     },
     "llm": {
@@ -463,10 +464,11 @@ def update_memory(memory_id: str, updated_memory: Dict[str, Any],
 
 
 @app.get("/memories/{memory_id}/history", summary="Get memory history")
-def memory_history(memory_id: str, knowledge_type: Literal["base", "light", "user_info", "knowledge_base", "artifact_base"] = Query(
-    default="light",
-    description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
-)):
+def memory_history(memory_id: str,
+                   knowledge_type: Literal["base", "light", "user_info", "knowledge_base", "artifact_base"] = Query(
+                       default="light",
+                       description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
+                   )):
     """Retrieve memory history."""
     try:
         CURRENT_MEMORY_INSTANCE = get_mem(knowledge_type)
@@ -477,10 +479,11 @@ def memory_history(memory_id: str, knowledge_type: Literal["base", "light", "use
 
 
 @app.delete("/memories/{memory_id}", summary="Delete a memory")
-def delete_memory(memory_id: str, knowledge_type: Literal["base", "light", "user_info", "knowledge_base", "artifact_base"] = Query(
-    default="user_info",
-    description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
-)):
+def delete_memory(memory_id: str,
+                  knowledge_type: Literal["base", "light", "user_info", "knowledge_base", "artifact_base"] = Query(
+                      default="user_info",
+                      description="Select the type of memory to be created: 'user_info' for personal facts, 'knowledge_base' for system information."
+                  )):
     """Delete a specific memory by ID."""
     try:
         CURRENT_MEMORY_INSTANCE = get_mem(knowledge_type)
