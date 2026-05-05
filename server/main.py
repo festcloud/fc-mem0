@@ -425,11 +425,24 @@ def search_memories(search_req: SearchRequest):
     start_time = time.perf_counter()
 
     try:
-        params = {k: v for k, v in search_req.model_dump().items()
-                  if v is not None and k not in ["query", "knowledge_type"]}
+        # Extract filters, or create a new dict if none provided
+        filters = search_req.filters or {}
+
+        # Explicitly map top-level attributes to the filters dictionary (mem0 >= 1.0.11 requirement)
+        if search_req.user_id:
+            filters["user_id"] = search_req.user_id
+        if search_req.agent_id:
+            filters["agent_id"] = search_req.agent_id
+        if search_req.run_id:
+            filters["run_id"] = search_req.run_id
+
         CURRENT_MEMORY_INSTANCE = get_mem(search_req.knowledge_type)
 
-        response = CURRENT_MEMORY_INSTANCE.search(query=search_req.query, **params)
+        # Pass query and filters directly (removing the unpacking of `**params` that caused the error)
+        response = CURRENT_MEMORY_INSTANCE.search(
+            query=search_req.query,
+            filters=filters if filters else None
+        )
 
         process_time = time.perf_counter() - start_time
         logging.info(f"search_memories executed in {process_time:.4f} seconds")
@@ -488,7 +501,6 @@ def delete_memory(memory_id: str,
     try:
         CURRENT_MEMORY_INSTANCE = get_mem(knowledge_type)
         return CURRENT_MEMORY_INSTANCE.delete(memory_id=memory_id)
-        return {"message": "Memory deleted successfully"}
     except Exception as e:
         logging.exception("Error in delete_memory:")
         raise HTTPException(status_code=500, detail=str(e))
