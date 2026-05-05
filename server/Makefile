@@ -4,4 +4,7 @@ build:
 run_local:
 	docker run -p 8000:8000 -v $(shell pwd):/app mem0-api-server --env-file .env
 
-.PHONY: build run_local
+sync-mem0:
+	cp -r ../mem0 ./mem0_package/mem0
+
+.PHONY: build run_local sync-mem0
