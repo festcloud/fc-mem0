@@ -44,6 +44,9 @@ MEMGRAPH_PASSWORD = os.environ.get("MEMGRAPH_PASSWORD", "mem0graph")
 GOOGLEAI_API_KEY = os.environ.get("GOOGLE_API_KEY")
 HISTORY_DB_PATH = os.environ.get("HISTORY_DB_PATH", "/app/history/history.db")
 
+SEARCH_LIMIT_VECTOR = int(os.environ.get("SEARCH_LIMIT_VECTOR", "25"))
+SEARCH_LIMIT_GRAPH = int(os.environ.get("SEARCH_LIMIT_GRAPH", "20"))
+
 FACT_EXTRACTION_PROMPT_USER_INFO = f"""You are a Persona information Agent. Your goal is to distill a 2-message interaction between user and agent into high-value, long-term insights about the user.
 
 CORE EXTRACTION PHILOSOPHY:
@@ -435,25 +438,17 @@ def search_memories(search_req: SearchRequest):
         )
 
     try:
-        filters = search_req.filters or {}
-
-        # 2. Явно переносимо ідентифікатори у словник filters
-        if search_req.user_id:
-            filters["user_id"] = search_req.user_id
-        if search_req.agent_id:
-            filters["agent_id"] = search_req.agent_id
-        if search_req.run_id:
-            filters["run_id"] = search_req.run_id
+        filters = search_req.filters or None
 
         CURRENT_MEMORY_INSTANCE = get_mem(search_req.knowledge_type)
 
-        # 3. Виконуємо пошук
         response = CURRENT_MEMORY_INSTANCE.search(
             query=search_req.query,
             user_id=search_req.user_id,
             agent_id=search_req.agent_id,
             run_id=search_req.run_id,
-            filters=filters if filters else None,
+            limit=max(SEARCH_LIMIT_VECTOR, SEARCH_LIMIT_GRAPH),
+            filters=filters,
         )
 
         process_time = time.perf_counter() - start_time
