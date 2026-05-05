@@ -424,11 +424,20 @@ def search_memories(search_req: SearchRequest):
     """Search for memories based on a query."""
     start_time = time.perf_counter()
 
+    # 1. Захист на рівні API: перевіряємо, чи передали хоча б один ID
+    has_id_in_req = any([search_req.user_id, search_req.agent_id, search_req.run_id])
+    has_id_in_filters = search_req.filters and any(k in search_req.filters for k in ["user_id", "agent_id", "run_id"])
+
+    if not (has_id_in_req or has_id_in_filters):
+        raise HTTPException(
+            status_code=400,
+            detail="At least one identifier (user_id, agent_id, run_id) is required for search."
+        )
+
     try:
-        # Extract filters, or create a new dict if none provided
         filters = search_req.filters or {}
 
-        # Explicitly map top-level attributes to the filters dictionary (mem0 >= 1.0.11 requirement)
+        # 2. Явно переносимо ідентифікатори у словник filters
         if search_req.user_id:
             filters["user_id"] = search_req.user_id
         if search_req.agent_id:
@@ -438,10 +447,13 @@ def search_memories(search_req: SearchRequest):
 
         CURRENT_MEMORY_INSTANCE = get_mem(search_req.knowledge_type)
 
-        # Pass query and filters directly (removing the unpacking of `**params` that caused the error)
+        # 3. Виконуємо пошук
         response = CURRENT_MEMORY_INSTANCE.search(
             query=search_req.query,
-            filters=filters if filters else None
+            user_id=search_req.user_id,
+            agent_id=search_req.agent_id,
+            run_id=search_req.run_id,
+            filters=filters if filters else None,
         )
 
         process_time = time.perf_counter() - start_time
