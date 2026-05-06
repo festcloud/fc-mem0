@@ -1,5 +1,5 @@
 build:
-	docker build -t mem0-api-server .
+	docker build --build-context mem0_local=../mem0 -t mem0-api-server .
 
 run_local:
 	docker run -p 8000:8000 \
